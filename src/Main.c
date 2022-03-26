@@ -1,16 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-long get_file_size(const char* fn){
-    FILE* f = fopen(fn, "rb");
-    if(f == NULL){
-        return -1;
-    }
-    fseek(f, 0, SEEK_END);
-    long ret = ftell(f);
-    fclose(f);
-    return ret;
-}
+#include "Reader.h"
 
 int main(int argc, char* argv[]){
     char bytes[] = {
@@ -32,24 +23,12 @@ int main(int argc, char* argv[]){
         0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
     };
 
-    long* counters = (long*)malloc(0xFF * sizeof(long));
+    const char* fn = "../tests/test_data1.txt";
 
-    FILE* f;
-    f = fopen("../tests/test_data1.txt", "rb");
+    Reader* r = Reader_init(fn);
 
-    if(f == NULL){
-        printf("File not open");
-    }
-    long file_size = get_file_size("../tests/test_data1.txt");
-    
-    char buffer[1];
-    
-    for(int i = 0; i < file_size; i ++){
-        fread(buffer, sizeof(char), 1, f);
-        printf("%s", buffer);
-    }
+    Reader_count(r);
 
-    fclose(f);
-    free(counters);
+    Reader_free(r);
     return 0;
 }

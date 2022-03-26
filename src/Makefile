@@ -1,2 +1,2 @@
 all:
-	gcc -g Main.c -o kompressor
+	gcc -g Main.c Reader.h Reader.c -o kompressor
