@@ -13,8 +13,10 @@ Reader* Reader_init(const char* fn){
 }
 
 int Reader_free(Reader* r){
-    int ret_code;
-    ret_code = fclose(r->file_ptr);
+    if(r == NULL){
+        return -1;
+    }
+    int ret_code = fclose(r->file_ptr);
     if(ret_code != 0){
         return -1;
     }
@@ -24,6 +26,9 @@ int Reader_free(Reader* r){
 }
 
 int Reader_count(Reader* r){
+    if(r == NULL){
+        return -1;
+    }
     char buffer[1];
     unsigned byte_index;
     for(int i = 0; i < r->file_size; i ++){
@@ -33,6 +38,16 @@ int Reader_count(Reader* r){
             return -1;
         }
         r->counters[byte_index]++;
+    }
+    return 0;
+}
+
+int Reader_display_counters(Reader* r){
+    if(r == NULL){
+        return -1;
+    }
+    for(int i = 0; i < 0xFF; i++){
+        printf("%3x : %ld\n", i, r->counters[i]);
     }
     return 0;
 }

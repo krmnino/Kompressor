@@ -14,8 +14,9 @@ struct Reader{
 typedef struct Reader Reader;
 
 Reader* Reader_init(const char*);
-int Reader_free();
-int Reader_count();
+int Reader_free(Reader*);
+int Reader_count(Reader*);
+int Reader_display_counters(Reader*);
 size_t get_file_size(const char*);
 
 #endif

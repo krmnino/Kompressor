@@ -29,6 +29,8 @@ int main(int argc, char* argv[]){
 
     Reader_count(r);
 
+    Reader_display_counters(r);
+
     Reader_free(r);
     return 0;
 }
