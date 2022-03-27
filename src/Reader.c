@@ -3,6 +3,18 @@
 
 #include "Reader.h"
 
+Pair* Pair_init(size_t bc, unsigned char bv){
+    Pair* p = (Pair*)malloc(sizeof(Pair));
+    p->byte_count = bc;
+    p->byte_value = bv;
+    return p;
+}
+
+int Pair_free(Pair* p){
+    free(p);
+    return 0;
+}
+
 Reader* Reader_init(const char* fn){
     if(fn == NULL){
         return NULL;

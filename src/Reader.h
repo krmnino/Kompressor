@@ -31,6 +31,9 @@ struct Pair{
 };
 typedef struct Pair Pair;
 
+Pair* Pair_init(size_t, unsigned char);
+int Pair_free(Pair*);
+
 struct Reader{
     size_t file_size;
     FILE* file_ptr;
