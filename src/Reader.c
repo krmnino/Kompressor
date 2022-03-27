@@ -4,12 +4,15 @@
 #include "Reader.h"
 
 Reader* Reader_init(const char* fn){
+    if(fn == NULL){
+        return NULL;
+    }
     Reader* r = (Reader*)malloc(sizeof(Reader));
     r->filename = fn;
     r->file_ptr = fopen(fn, "rb");
-    r->counters = (Pair*)calloc(0x100, sizeof(Pair));
+    r->counters = (Pair*)calloc(BYTES_SIZE, sizeof(Pair));
     r->file_size = _get_file_size(fn);
-    for(int i = 0; i < 0x100; i++){
+    for(int i = 0; i < BYTES_SIZE; i++){
         r->counters[i].byte_value = bytes[i];
     }
     return r;
@@ -50,7 +53,7 @@ int Reader_display_counters(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < 0x100; i++){
+    for(int i = 0; i < BYTES_SIZE; i++){
         printf("%2x : %ld\n", r->counters[i].byte_value, r->counters[i].byte_count);
     }
     return 0;
@@ -60,8 +63,8 @@ int Reader_sort_count(Reader* r){
     if(r == NULL){
         return -1;
     }
-    qsort(r->counters, 0x100, sizeof(Pair), _pair_compare);
-    for(int i = 0; i < 0x100; i++){
+    qsort(r->counters, BYTES_SIZE, sizeof(Pair), _pair_compare);
+    for(int i = 0; i < BYTES_SIZE; i++){
         if(r->counters[i].byte_count != 0){
             r->pairs_written++;
         }
@@ -73,7 +76,7 @@ int Reader_reset_count(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < 0x100; i++){
+    for(int i = 0; i < BYTES_SIZE; i++){
         r->counters[i].byte_value = bytes[i];
         r->counters[i].byte_count = 0;
     }
