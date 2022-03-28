@@ -47,6 +47,8 @@ int Reader_count(Reader* r){
     if(r == NULL){
         return -1;
     }
+
+    // Scan file byte by byte and count
     unsigned char buffer[1];
     unsigned byte_index;
     for(int i = 0; i < r->file_size; i ++){
@@ -58,6 +60,14 @@ int Reader_count(Reader* r){
         r->counters[byte_index].byte_count++;
     }
     rewind(r->file_ptr);
+
+    // Sort counters and determine how many byte pairs were written
+    qsort(r->counters, BYTES_SIZE, sizeof(Pair), _pair_compare);
+    for(int i = 0; i < BYTES_SIZE; i++){
+        if(r->counters[i].byte_count != 0){
+            r->pairs_written++;
+        }
+    }
     return 0;
 }
 
@@ -67,19 +77,6 @@ int Reader_display_counters(Reader* r){
     }
     for(int i = 0; i < BYTES_SIZE; i++){
         printf("%2x : %ld\n", r->counters[i].byte_value, r->counters[i].byte_count);
-    }
-    return 0;
-}
-
-int Reader_sort_count(Reader* r){
-    if(r == NULL){
-        return -1;
-    }
-    qsort(r->counters, BYTES_SIZE, sizeof(Pair), _pair_compare);
-    for(int i = 0; i < BYTES_SIZE; i++){
-        if(r->counters[i].byte_count != 0){
-            r->pairs_written++;
-        }
     }
     return 0;
 }
