@@ -3,7 +3,7 @@
 
 #include "Reader.h"
 
-Pair* Pair_init(size_t bc, unsigned char bv){
+Pair* Pair_init(unsigned short bv, size_t bc){
     Pair* p = (Pair*)malloc(sizeof(Pair));
     p->byte_count = bc;
     p->byte_value = bv;
@@ -49,6 +49,7 @@ int Reader_compress_count(Reader* r){
         return -1;
     }
 
+    // Delcare byte-size buffers
     unsigned char buffer_l[1];
     unsigned char buffer_r[1];
     unsigned short idx;
@@ -67,6 +68,7 @@ int Reader_compress_count(Reader* r){
         idx = (idx | (unsigned short)buffer_l[0]) << 8;
         idx = (idx | 0x00);
         buffer_r[0] = 0x00;
+        r->counters[idx].byte_count++;
     }
     else{
         for(size_t i = 0; i < r->file_size - 1; i += 2){
@@ -93,8 +95,15 @@ int Reader_display_counters(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < 16; i++){
-        printf("%2x : %ld\n", r->counters[i].byte_value, r->counters[i].byte_count);
+    for(int i = 0; i < BLOCKS; i+=8){
+        printf("%2x : %6ld, "  , r->counters[i].byte_value    ,  r->counters[i].byte_count);
+        printf("%2x : %6ld, "  , r->counters[i + 1].byte_value,  r->counters[i + 1].byte_count);
+        printf("%2x : %6ld, "  , r->counters[i + 2].byte_value,  r->counters[i + 2].byte_count);
+        printf("%2x : %6ld, "  , r->counters[i + 3].byte_value,  r->counters[i + 3].byte_count);
+        printf("%2x : %6ld, "  , r->counters[i + 4].byte_value,  r->counters[i + 4].byte_count);
+        printf("%2x : %6ld, "  , r->counters[i + 5].byte_value,  r->counters[i + 5].byte_count);
+        printf("%2x : %6ld, "  , r->counters[i + 6].byte_value,  r->counters[i + 6].byte_count);
+        printf("%2x : %6ld\n", r->counters[i + 7].byte_value,  r->counters[i + 7].byte_count);
     }
     return 0;
 }
