@@ -22,10 +22,11 @@ Reader* Reader_init(const char* fn){
     Reader* r = (Reader*)malloc(sizeof(Reader));
     r->filename = fn;
     r->file_ptr = fopen(fn, "rb");
-    r->counters = (Pair*)calloc(BYTES_SIZE, sizeof(Pair));
+    r->counters = (Pair*)calloc(BLOCKS, sizeof(Pair));
     r->file_size = _get_file_size(fn);
-    for(int i = 0; i < BYTES_SIZE; i++){
-        r->counters[i].byte_value = bytes[i];
+    for(unsigned int i = 0; i < BLOCKS; i++){
+        r->counters[i].byte_value = (unsigned short)i;
+        r->counters[i].byte_count = 0;
     }
     return r;
 }
@@ -43,27 +44,44 @@ int Reader_free(Reader* r){
     return 0;
 }
 
-int Reader_count(Reader* r){
+int Reader_compress_count(Reader* r){
     if(r == NULL){
         return -1;
     }
 
+    unsigned char buffer_l[1];
+    unsigned char buffer_r[1];
+    unsigned short idx;
+
     // Scan file byte by byte and count
-    unsigned char buffer[1];
-    unsigned byte_index;
-    for(int i = 0; i < r->file_size; i ++){
-        fread(buffer, sizeof(char), 1, r->file_ptr);
-        byte_index = (unsigned int)buffer[0];
-        if(byte_index < 0 || byte_index >= 0xFF){
-            return -1;
+    if(r->file_size % 2 != 0){
+        for(size_t i = 0; i < r->file_size - 1; i += 2){
+            idx = 0;
+            fread(buffer_l, sizeof(char), 1, r->file_ptr);
+            fread(buffer_r, sizeof(char), 1, r->file_ptr);
+            idx = (idx | (unsigned short)buffer_l[0]) << 8;
+            idx = (idx | (unsigned short)buffer_r[0]);
+            r->counters[idx].byte_count++;
         }
-        r->counters[byte_index].byte_count++;
+        fread(buffer_l, sizeof(char), 1, r->file_ptr);
+        idx = (idx | (unsigned short)buffer_l[0]) << 8;
+        idx = (idx | 0x00);
+        buffer_r[0] = 0x00;
     }
-    rewind(r->file_ptr);
+    else{
+        for(size_t i = 0; i < r->file_size - 1; i += 2){
+            idx = 0;
+            fread(buffer_l, sizeof(char), 1, r->file_ptr);
+            fread(buffer_r, sizeof(char), 1, r->file_ptr);
+            idx = (idx | (unsigned short)buffer_l[0]) << 8;
+            idx = (idx | (unsigned short)buffer_r[0]);
+            r->counters[idx].byte_count++;
+        }
+    }
 
     // Sort counters and determine how many byte pairs were written
-    qsort(r->counters, BYTES_SIZE, sizeof(Pair), _pair_compare);
-    for(int i = 0; i < BYTES_SIZE; i++){
+    qsort(r->counters, BLOCKS, sizeof(Pair), _pair_compare);
+    for(int i = 0; i < BLOCKS; i++){
         if(r->counters[i].byte_count != 0){
             r->pairs_written++;
         }
@@ -75,7 +93,7 @@ int Reader_display_counters(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < BYTES_SIZE; i++){
+    for(int i = 0; i < 16; i++){
         printf("%2x : %ld\n", r->counters[i].byte_value, r->counters[i].byte_count);
     }
     return 0;
@@ -85,8 +103,7 @@ int Reader_reset_count(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < BYTES_SIZE; i++){
-        r->counters[i].byte_value = bytes[i];
+    for(int i = 0; i < BLOCKS; i++){
         r->counters[i].byte_count = 0;
     }
     r->pairs_written = 0;
