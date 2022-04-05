@@ -11,7 +11,7 @@ struct Pair{
     size_t byte_count;
     unsigned short byte_value;
 };
-Pair* Pair_init(unsigned, size_t);
+Pair* Pair_init(unsigned short, size_t);
 int Pair_free(Pair*);
 
 typedef struct Reader Reader;
