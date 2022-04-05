@@ -2,21 +2,26 @@
 #include <stdio.h>
 
 #include "Reader.h"
+#include "Huffman.h"
 
 int main(int argc, char* argv[]){
-    const char* fn = "../tests/test_data1.txt";
+    //const char* fn = "../tests/test_data1.txt";
     //const char* fn = "../tests/test_data2.cl";
+    //const char* fn = "../tests/test_data3.txt";
+    const char* fn = "../tests/test_data4.txt";
 
     Reader* r = Reader_init(fn);
 
-    Reader_count(r);
+    Reader_compress_count(r);
+  
+    //Reader_display_counters(r);
 
-    Reader_sort_count(r);
-
-    Reader_display_counters(r);
-
-    Reader_reset_count(r);
-
+    Huffman* h = Huffman_init(r);
+//
+    //Reader_reset_count(r);
+//
     Reader_free(r);
+    Huffman_free(h);
+    
     return 0;
 }
