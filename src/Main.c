@@ -17,6 +17,8 @@ int main(int argc, char* argv[]){
     //Reader_display_counters(r);
 
     Huffman* h = Huffman_init(r);
+
+    Huffman_compress(h, r);
 //
     //Reader_reset_count(r);
 //

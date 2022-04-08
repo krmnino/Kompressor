@@ -79,7 +79,7 @@ int HNode_dfs(HNode* node, int level_count, char* code_buffer, char** huffman_co
     // If current node is a leaf (contains two-byte value)
     if(node->t_left == NULL && node->t_right == NULL){
         // Clear remaining entries in code buffer beyond the current level index
-        for(int i = level_count + 1; i < BLOCKS; i++){
+        for(int i = level_count; i < BLOCKS; i++){
             code_buffer[i] = 0x00;
         }
         // Allocate string of appropriate size in huffman code array
@@ -236,11 +236,7 @@ Huffman* Huffman_init(Reader* r){
     h->huffman_code = (char**)malloc(BLOCKS * sizeof(char*));
     char* code_buffer = (char*)malloc(BLOCKS * sizeof(char));
     HNode_dfs(root, 0, code_buffer, h->huffman_code);
-    for(unsigned int i = 0; i < BLOCKS; i++){
-        if(h->huffman_code[i] != NULL){
-            printf("%4x, %s\n", i, h->huffman_code[i]);
-        }
-    } 
+
     free(code_buffer);
     HNode_free_bfs(root);
     
@@ -250,5 +246,116 @@ Huffman* Huffman_init(Reader* r){
 int Huffman_free(Huffman* h){
     free(h->huffman_code);
     free(h);
+    return 0;
+}
+
+int Huffman_compress(Huffman* h, Reader* r){
+    // Delcare byte-size buffers
+    size_t code_len;
+    unsigned short byte_buffer;
+    unsigned short bit_offset;
+    unsigned short idx;
+    unsigned char buffer_l[1];
+    unsigned char buffer_r[1];
+
+    // Scan file byte by byte and count
+    if(r->file_size % 2 != 0){
+        bit_offset = 0;
+        byte_buffer = 0;
+        for(size_t i = 0; i < r->file_size - 1; i += 2){
+            idx = 0;
+            fread(buffer_l, sizeof(char), 1, r->file_ptr);
+            fread(buffer_r, sizeof(char), 1, r->file_ptr);
+            idx = ((idx | buffer_l[0]) << 8) | buffer_r[0];
+            code_len = strlen(h->huffman_code[idx]);
+            for(size_t j = 0; j < code_len + 1; j++){
+                if(bit_offset >= 15){
+                    if(j == 0){
+                        byte_buffer = (byte_buffer << 1) | 0x01;
+                    }
+                    else{
+                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                    }
+                    // WRITE BYTE
+                    printf("%x\n", byte_buffer);
+                    byte_buffer = 0x00;
+                    bit_offset = 0;
+                }
+                else{
+                    if(j == 0){
+                        byte_buffer = (byte_buffer << 1) | 0x01;
+                    }
+                    else{
+                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                    }
+                    bit_offset++;
+                }
+            }
+        }
+        fread(buffer_l, sizeof(char), 1, r->file_ptr);
+        fread(buffer_r, sizeof(char), 1, r->file_ptr);
+        idx = ((idx | buffer_l[0]) << 8) | 0x00;
+        code_len = strlen(h->huffman_code[idx]);
+        for(size_t j = 0; j < code_len + 1; j++){
+            if(bit_offset >= 15){
+                if(j == 0){
+                    byte_buffer = (byte_buffer << 1) | 0x01;
+                }
+                else{
+                    byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                }
+                // WRITE BYTE
+                printf("%x\n", byte_buffer);
+                byte_buffer = 0x00;
+                bit_offset = 0;
+            }
+            else{
+                if(j == 0){
+                    byte_buffer = (byte_buffer << 1) | 0x01;
+                }
+                else{
+                    byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                }
+                bit_offset++;
+            }
+        }
+        // WRITE BYTE
+        printf("%x\n", byte_buffer);
+    }
+    else{
+        bit_offset = 0;
+        byte_buffer = 0;
+        for(size_t i = 0; i < r->file_size - 1; i += 2){
+            idx = 0;
+            fread(buffer_l, sizeof(char), 1, r->file_ptr);
+            fread(buffer_r, sizeof(char), 1, r->file_ptr);
+            idx = ((idx | buffer_l[0]) << 8) | buffer_r[0];
+            code_len = strlen(h->huffman_code[idx]);
+            for(size_t j = 0; j < code_len + 1; j++){
+                if(bit_offset >= 15){
+                    if(j == 0){
+                        byte_buffer = (byte_buffer << 1) | 0x01;
+                    }
+                    else{
+                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                    }
+                    // WRITE BYTE
+                    printf("%x\n", byte_buffer);
+                    byte_buffer = 0x00;
+                    bit_offset = 0;
+                }
+                else{
+                    if(j == 0){
+                        byte_buffer = (byte_buffer << 1) | 0x01;
+                    }
+                    else{
+                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                    }
+                    bit_offset++;
+                }
+            }
+        }
+    }
+    rewind(r->file_ptr);
     return 0;
 }

@@ -39,5 +39,7 @@ struct Huffman{
 };
 Huffman* Huffman_init(Reader*);
 int Huffman_free(Huffman*);
+int Huffman_compress(Huffman*, Reader*);
+int Huffman_decompress(Huffman*);
 
 #endif

@@ -80,6 +80,7 @@ int Reader_compress_count(Reader* r){
             r->counters[idx].byte_count++;
         }
     }
+    rewind(r->file_ptr);
 
     // Sort counters and determine how many byte pairs were written
     qsort(r->counters, BLOCKS, sizeof(Pair), _pair_compare);
