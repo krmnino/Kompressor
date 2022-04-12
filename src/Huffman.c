@@ -188,18 +188,19 @@ int HQueue_display_queue(HQueue* queue){
     HNode* curr = queue->head;
     // Traverse queue and print each pair
     while(curr != NULL){
-        printf("[%4x, %ld]\n", curr->pair->byte_value, curr->pair->byte_count);
+        printf("[%4x, %d]\n", curr->pair->byte_value, curr->pair->byte_count);
         curr = curr->q_next;
     }
     return 0;
 }
 
-Huffman* Huffman_init(Reader* r){
+Huffman* Huffman_init(Reader* r, const char* fn){
     if(r == NULL){
         return NULL;
     }
     Huffman* h = (Huffman*)malloc(sizeof(Huffman));
     h->n_elements = r->pairs_written;
+    h->filename = fn;
 
     // Initialize queue
     HQueue* queue = HQueue_init();
@@ -213,18 +214,24 @@ Huffman* Huffman_init(Reader* r){
         HQueue_enqueue(queue, node);
     }
 
+    // Build binary tree from queue
     HNode* n1;
     HNode* n2;
     while(1){
+        // If there is one or less elements in queue, exit
         if(queue->n_elements <= 1){
             break;
         }
+        // Get first 2 nodes in queue
         n1 = HQueue_dequeue(queue);
         n2 = HQueue_dequeue(queue);
+        // Add byte count from both nodes
         p = Pair_init(0, n1->pair->byte_count + n2->pair->byte_count);
         node = HNode_init(p);
+        // Make them left and right child nodes
         node->t_left = n1;
         node->t_right = n2;
+        // Enqueue new parent node
         HQueue_enqueue(queue, node);
     }
 
@@ -237,6 +244,7 @@ Huffman* Huffman_init(Reader* r){
     char* code_buffer = (char*)malloc(BLOCKS * sizeof(char));
     HNode_dfs(root, 0, code_buffer, h->huffman_code);
 
+    // Free up buffer and binary tree from root
     free(code_buffer);
     HNode_free_bfs(root);
     
@@ -244,6 +252,11 @@ Huffman* Huffman_init(Reader* r){
 }
 
 int Huffman_free(Huffman* h){
+    for(unsigned int i = 0; i < BLOCKS; i++){
+        if(h->huffman_code[i] != NULL){
+            free(h->huffman_code[i]);
+        }
+    }
     free(h->huffman_code);
     free(h);
     return 0;
@@ -257,12 +270,16 @@ int Huffman_compress(Huffman* h, Reader* r){
     unsigned short idx;
     unsigned char buffer_l[1];
     unsigned char buffer_r[1];
+    FILE* output;
+    output = fopen(h->filename, "w");
 
-    // Scan file byte by byte and count
+    // Scan file byte 
     if(r->file_size % 2 != 0){
         bit_offset = 0;
         byte_buffer = 0;
+        // Read through whole file except the last byte
         for(size_t i = 0; i < r->file_size - 1; i += 2){
+            // Read 2 bytes to create index value
             idx = 0;
             fread(buffer_l, sizeof(char), 1, r->file_ptr);
             fread(buffer_r, sizeof(char), 1, r->file_ptr);
@@ -271,27 +288,32 @@ int Huffman_compress(Huffman* h, Reader* r){
             for(size_t j = 0; j < code_len + 1; j++){
                 if(bit_offset >= 15){
                     if(j == 0){
+                        // Write 1 for the first bit of Huffman code
                         byte_buffer = (byte_buffer << 1) | 0x01;
                     }
                     else{
+                        // Get the corresponfding Huffman code bit
                         byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
-                    // WRITE BYTE
-                    printf("%x\n", byte_buffer);
+                    // Write byte
+                    fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
                     byte_buffer = 0x00;
                     bit_offset = 0;
                 }
                 else{
                     if(j == 0){
+                        // Write 1 for the first bit of Huffman code
                         byte_buffer = (byte_buffer << 1) | 0x01;
                     }
                     else{
+                        // Get the corresponfding Huffman code bit
                         byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
                     bit_offset++;
                 }
             }
         }
+        // Read last byte and pad remaining byte with zeros
         fread(buffer_l, sizeof(char), 1, r->file_ptr);
         fread(buffer_r, sizeof(char), 1, r->file_ptr);
         idx = ((idx | buffer_l[0]) << 8) | 0x00;
@@ -299,56 +321,66 @@ int Huffman_compress(Huffman* h, Reader* r){
         for(size_t j = 0; j < code_len + 1; j++){
             if(bit_offset >= 15){
                 if(j == 0){
+                    // Write 1 for the first bit of Huffman code
                     byte_buffer = (byte_buffer << 1) | 0x01;
                 }
                 else{
+                    // Get the corresponfding Huffman code bit
                     byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                 }
-                // WRITE BYTE
-                printf("%x\n", byte_buffer);
+                // Write byte
+                fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
                 byte_buffer = 0x00;
                 bit_offset = 0;
             }
             else{
                 if(j == 0){
+                    // Write 1 for the first bit of Huffman code
                     byte_buffer = (byte_buffer << 1) | 0x01;
                 }
                 else{
+                    // Get the corresponfding Huffman code bit
                     byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                 }
                 bit_offset++;
             }
         }
-        // WRITE BYTE
-        printf("%x\n", byte_buffer);
+        // Write byte
+        fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
     }
     else{
         bit_offset = 0;
         byte_buffer = 0;
+        // Read through whole file
         for(size_t i = 0; i < r->file_size - 1; i += 2){
+            // Read 2 bytes to create index value
             idx = 0;
             fread(buffer_l, sizeof(char), 1, r->file_ptr);
             fread(buffer_r, sizeof(char), 1, r->file_ptr);
             idx = ((idx | buffer_l[0]) << 8) | buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
-            for(size_t j = 0; j < code_len + 1; j++){
+            for(unsigned int j = 0; j < code_len + 1; j++){
                 if(bit_offset >= 15){
                     if(j == 0){
+                        // Write 1 for the first bit of Huffman code
                         byte_buffer = (byte_buffer << 1) | 0x01;
                     }
                     else{
+                        // Get the corresponfding Huffman code bit
                         byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
-                    // WRITE BYTE
-                    printf("%x\n", byte_buffer);
+                    // Write byte
+                    fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
                     byte_buffer = 0x00;
                     bit_offset = 0;
                 }
                 else{
+                    // Write 1 for the first bit of Huffman code
                     if(j == 0){
                         byte_buffer = (byte_buffer << 1) | 0x01;
                     }
                     else{
+                        // Get the corresponfding Huffman code bit
                         byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
                     bit_offset++;
@@ -357,5 +389,11 @@ int Huffman_compress(Huffman* h, Reader* r){
         }
     }
     rewind(r->file_ptr);
+    fclose(output);
+    for(size_t i = 0; i < BLOCKS; i++){
+        if(r->counters[i].byte_count != 0){
+            printf("%x, %d\n", r->counters[i].byte_value, r->counters[i].byte_count);
+        }
+    }
     return 0;
 }

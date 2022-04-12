@@ -36,8 +36,9 @@ typedef struct Huffman Huffman;
 struct Huffman{
     unsigned long n_elements;
     char** huffman_code;
+    const char* filename;
 };
-Huffman* Huffman_init(Reader*);
+Huffman* Huffman_init(Reader*, const char*);
 int Huffman_free(Huffman*);
 int Huffman_compress(Huffman*, Reader*);
 int Huffman_decompress(Huffman*);
