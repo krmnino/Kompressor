@@ -57,34 +57,41 @@ int Reader_compress_count(Reader* r){
     // Scan file byte by byte and count
     if(r->file_size % 2 != 0){
         for(size_t i = 0; i < r->file_size - 1; i += 2){
+            // Read 2 bytes to create index value
             idx = 0;
             fread(buffer_l, sizeof(char), 1, r->file_ptr);
             fread(buffer_r, sizeof(char), 1, r->file_ptr);
             idx = (idx | (unsigned short)buffer_l[0]) << 8;
             idx = (idx | (unsigned short)buffer_r[0]);
+            // Increase index count by one 
             r->counters[idx].byte_count++;
         }
+        // Read last byte and pad remaining byte with zeros
         fread(buffer_l, sizeof(char), 1, r->file_ptr);
         idx = (idx | (unsigned short)buffer_l[0]) << 8;
         idx = (idx | 0x00);
         buffer_r[0] = 0x00;
+        // Increase index count by one 
         r->counters[idx].byte_count++;
     }
     else{
         for(size_t i = 0; i < r->file_size - 1; i += 2){
+            // Read 2 bytes to create index value
             idx = 0;
             fread(buffer_l, sizeof(char), 1, r->file_ptr);
             fread(buffer_r, sizeof(char), 1, r->file_ptr);
             idx = (idx | (unsigned short)buffer_l[0]) << 8;
             idx = (idx | (unsigned short)buffer_r[0]);
+            // Increase index count by one 
             r->counters[idx].byte_count++;
         }
     }
+    // Bring file pointer back to start
     rewind(r->file_ptr);
 
     // Sort counters and determine how many byte pairs were written
     qsort(r->counters, BLOCKS, sizeof(Pair), _pair_compare);
-    for(int i = 0; i < BLOCKS; i++){
+    for(unsigned int i = 0; i < BLOCKS; i++){
         if(r->counters[i].byte_count != 0){
             r->pairs_written++;
         }
@@ -96,15 +103,15 @@ int Reader_display_counters(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < BLOCKS; i+=8){
-        printf("%2x : %6ld, "  , r->counters[i].byte_value    ,  r->counters[i].byte_count);
-        printf("%2x : %6ld, "  , r->counters[i + 1].byte_value,  r->counters[i + 1].byte_count);
-        printf("%2x : %6ld, "  , r->counters[i + 2].byte_value,  r->counters[i + 2].byte_count);
-        printf("%2x : %6ld, "  , r->counters[i + 3].byte_value,  r->counters[i + 3].byte_count);
-        printf("%2x : %6ld, "  , r->counters[i + 4].byte_value,  r->counters[i + 4].byte_count);
-        printf("%2x : %6ld, "  , r->counters[i + 5].byte_value,  r->counters[i + 5].byte_count);
-        printf("%2x : %6ld, "  , r->counters[i + 6].byte_value,  r->counters[i + 6].byte_count);
-        printf("%2x : %6ld\n", r->counters[i + 7].byte_value,  r->counters[i + 7].byte_count);
+    for(unsigned int i = 0; i < BLOCKS; i+=8){
+        printf("%2x : %6d, "  , r->counters[i].byte_value    ,  r->counters[i].byte_count);
+        printf("%2x : %6d, "  , r->counters[i + 1].byte_value,  r->counters[i + 1].byte_count);
+        printf("%2x : %6d, "  , r->counters[i + 2].byte_value,  r->counters[i + 2].byte_count);
+        printf("%2x : %6d, "  , r->counters[i + 3].byte_value,  r->counters[i + 3].byte_count);
+        printf("%2x : %6d, "  , r->counters[i + 4].byte_value,  r->counters[i + 4].byte_count);
+        printf("%2x : %6d, "  , r->counters[i + 5].byte_value,  r->counters[i + 5].byte_count);
+        printf("%2x : %6d, "  , r->counters[i + 6].byte_value,  r->counters[i + 6].byte_count);
+        printf("%2x : %6d\n", r->counters[i + 7].byte_value,  r->counters[i + 7].byte_count);
     }
     return 0;
 }
@@ -113,7 +120,7 @@ int Reader_reset_count(Reader* r){
     if(r == NULL){
         return -1;
     }
-    for(int i = 0; i < BLOCKS; i++){
+    for(unsigned int i = 0; i < BLOCKS; i++){
         r->counters[i].byte_count = 0;
     }
     r->pairs_written = 0;

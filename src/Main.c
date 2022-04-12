@@ -5,10 +5,12 @@
 #include "Huffman.h"
 
 int main(int argc, char* argv[]){
-    //const char* fn = "../tests/test_data1.txt";
+    const char* fn = "../tests/test_data1.txt";
     //const char* fn = "../tests/test_data2.cl";
     //const char* fn = "../tests/test_data3.txt";
-    const char* fn = "../tests/test_data4.txt";
+    //const char* fn = "../tests/test_data4.txt";
+    //const char* fn = "../tests/test_data5.txt";
+    //const char* fn = "../tests/test_data6.txt";
 
     Reader* r = Reader_init(fn);
 
@@ -16,7 +18,7 @@ int main(int argc, char* argv[]){
   
     //Reader_display_counters(r);
 
-    Huffman* h = Huffman_init(r);
+    Huffman* h = Huffman_init(r, "output.kom");
 
     Huffman_compress(h, r);
 //

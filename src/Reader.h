@@ -8,7 +8,7 @@
 
 typedef struct Pair Pair;
 struct Pair{
-    size_t byte_count;
+    unsigned int byte_count;
     unsigned short byte_value;
 };
 Pair* Pair_init(unsigned short, size_t);
