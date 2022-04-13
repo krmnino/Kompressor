@@ -99,6 +99,28 @@ int Reader_compress_count(Reader* r){
     return 0;
 }
 
+int Reader_decompress_count(Reader* r){
+    if(r == NULL){
+        return -1;
+    }
+
+    // Delcare byte-size buffers
+    unsigned char buffer_l[1];
+    unsigned char buffer_r[1];
+    unsigned short idx;
+
+    for(size_t i = 0; i < r->file_size; i += 2){
+        // Read 2 bytes to create index value
+        idx = 0;
+        fread(buffer_l, sizeof(char), 1, r->file_ptr);
+        fread(buffer_r, sizeof(char), 1, r->file_ptr);
+        idx = (idx | (unsigned short)buffer_l[0]) << 8;
+        idx = (idx | (unsigned short)buffer_r[0]);
+    }
+
+    return 0;
+}
+
 int Reader_display_counters(Reader* r){
     if(r == NULL){
         return -1;

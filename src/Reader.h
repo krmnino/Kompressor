@@ -25,6 +25,7 @@ struct Reader{
 Reader* Reader_init(const char*);
 int Reader_free(Reader*);
 int Reader_compress_count(Reader*);
+int Reader_decompress_count(Reader*);
 int Reader_display_counters(Reader*);
 int Reader_reset_count(Reader*);
 size_t _get_file_size(const char*);
