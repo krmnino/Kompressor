@@ -317,16 +317,10 @@ int Huffman_compress(Huffman* h, Reader* r){
             fread(byte_buffer_r, sizeof(char), 1, r->file_ptr);
             idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
-            for(size_t j = 0; j < code_len + 1; j++){
+            for(size_t j = 0; j < code_len; j++){
                 if(bit_offset >= 15){
-                    if(j == 0){
-                        // Write 1 for the first bit of Huffman code
-                        word_buffer = (word_buffer << 1) | 0x01;
-                    }
-                    else{
-                        // Get the corresponfding Huffman code bit
-                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
-                    }
+                    // Get the corresponfding Huffman code bit
+                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
                     // Write byte and reset buffer + offset counter
                     byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
                     byte_buffer[1] = (word_buffer & 0xFF);
@@ -335,14 +329,8 @@ int Huffman_compress(Huffman* h, Reader* r){
                     bit_offset = 0;
                 }
                 else{
-                    if(j == 0){
-                        // Write 1 for the first bit of Huffman code
-                        word_buffer = (word_buffer << 1) | 0x01;
-                    }
-                    else{
-                        // Get the corresponfding Huffman code bit
-                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
-                    }
+                    // Get the corresponfding Huffman code bit
+                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
                     bit_offset++;
                 }
             }
@@ -351,16 +339,10 @@ int Huffman_compress(Huffman* h, Reader* r){
         fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
         idx = ((idx | byte_buffer_l[0]) << 8) | 0x00;
         code_len = strlen(h->huffman_code[idx]);
-        for(size_t j = 0; j < code_len + 1; j++){
+        for(size_t j = 0; j < code_len; j++){
             if(bit_offset >= 15){
-                if(j == 0){
-                    // Write 1 for the first bit of Huffman code
-                    word_buffer = (word_buffer << 1) | 0x01;
-                }
-                else{
-                    // Get the corresponfding Huffman code bit
-                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
-                }
+                // Get the corresponfding Huffman code bit
+                word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
                 // Write byte and reset buffer + offset counter
                 byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
                 byte_buffer[1] = (word_buffer & 0xFF);
@@ -369,14 +351,8 @@ int Huffman_compress(Huffman* h, Reader* r){
                 bit_offset = 0;
             }
             else{
-                if(j == 0){
-                    // Write 1 for the first bit of Huffman code
-                    word_buffer = (word_buffer << 1) | 0x01;
-                }
-                else{
-                    // Get the corresponfding Huffman code bit
-                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
-                }
+                // Get the corresponfding Huffman code bit
+                word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
                 bit_offset++;
             }
         }
@@ -400,16 +376,10 @@ int Huffman_compress(Huffman* h, Reader* r){
             fread(byte_buffer_r, sizeof(char), 1, r->file_ptr);
             idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
-            for(unsigned int j = 0; j < code_len + 1; j++){
+            for(unsigned int j = 0; j < code_len; j++){
                 if(bit_offset >= 15){
-                    if(j == 0){
-                        // Write 1 for the first bit of Huffman code
-                        word_buffer = (word_buffer << 1) | 0x01;
-                    }
-                    else{
-                        // Get the corresponfding Huffman code bit
-                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
-                    }
+                    // Get the corresponfding Huffman code bit
+                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
                     // Write byte and reset buffer + offset counter
                     byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
                     byte_buffer[1] = (word_buffer & 0xFF);
@@ -418,14 +388,8 @@ int Huffman_compress(Huffman* h, Reader* r){
                     bit_offset = 0;
                 }
                 else{
-                    // Write 1 for the first bit of Huffman code
-                    if(j == 0){
-                        word_buffer = (word_buffer << 1) | 0x01;
-                    }
-                    else{
-                        // Get the corresponfding Huffman code bit
-                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
-                    }
+                    // Get the corresponfding Huffman code bit
+                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
                     bit_offset++;
                 }
             }
