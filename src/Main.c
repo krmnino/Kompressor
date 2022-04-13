@@ -10,7 +10,9 @@ int main(int argc, char* argv[]){
     //const char* fn = "../tests/test_data3.txt";
     //const char* fn = "../tests/test_data4.txt";
     //const char* fn = "../tests/test_data5.txt";
-    const char* fn = "../tests/test_data6.txt";
+    //const char* fn = "../tests/test_data6.txt";
+    //const char* fn = "../tests/test_data7.csv";
+    const char* fn = "../tests/test_data8.json";
 
     Reader* r = Reader_init(fn);
     Reader* r2 = Reader_init("output.kom");
