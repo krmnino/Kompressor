@@ -202,16 +202,22 @@ Huffman* Huffman_init(Reader* r, const char* fn){
     h->n_elements = r->pairs_written;
     h->filename = fn;
 
-    // Initialize queue
+    // Initialize queues
     HQueue* queue = HQueue_init();
+    h->byte_counters = HQueue_init();
 
-    // Fill queue with Reader counter data
+    // Fill queues with Reader counter data
     Pair* p;
+    Pair* p_bc;
     HNode* node;
+    HNode* node_bc;
     for(unsigned int i = 0; i < BLOCKS && r->counters[i].byte_count != 0; i++) {
         p = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
+        p_bc = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
         node = HNode_init(p);
+        node_bc = HNode_init(p);
         HQueue_enqueue(queue, node);
+        HQueue_enqueue(h->byte_counters, node_bc);
     }
 
     // Build binary tree from queue
@@ -257,6 +263,7 @@ int Huffman_free(Huffman* h){
             free(h->huffman_code[i]);
         }
     }
+    HQueue_free(h->byte_counters);
     free(h->huffman_code);
     free(h);
     return 0;
@@ -265,135 +272,167 @@ int Huffman_free(Huffman* h){
 int Huffman_compress(Huffman* h, Reader* r){
     // Delcare byte-size buffers
     size_t code_len;
-    unsigned short byte_buffer;
+    unsigned int double_word_buffer;
+    unsigned short word_buffer;
+    unsigned char byte_buffer[4];
     unsigned short bit_offset;
     unsigned short idx;
-    unsigned char buffer_l[1];
-    unsigned char buffer_r[1];
+    unsigned char byte_buffer_l[1];
+    unsigned char byte_buffer_r[1];
     FILE* output;
     output = fopen(h->filename, "w");
+
+    HNode* prev;
+    HNode* curr;
+    prev = NULL;
+    curr = h->byte_counters->head;
+    // Write two-byte values into file header
+    while(curr != NULL){
+        byte_buffer[0] = (curr->pair->byte_value & 0xFF00) >> 8;
+        byte_buffer[1] = curr->pair->byte_value & 0xFF;
+        fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+        curr = curr->q_next;
+    }
+    // Write two-byte value counts into file header
+    prev = NULL;
+    curr = h->byte_counters->head;
+    while(curr != NULL){
+        byte_buffer[0] = (curr->pair->byte_count & 0xFF000000) >> 24;
+        byte_buffer[1] = (curr->pair->byte_count & 0xFF0000) >> 16;
+        byte_buffer[2] = (curr->pair->byte_count & 0xFF00) >> 8;
+        byte_buffer[3] = curr->pair->byte_count & 0xFF;
+        fwrite(&byte_buffer, sizeof(unsigned char), 4, output);
+        curr = curr->q_next;
+    }
 
     // Scan file byte 
     if(r->file_size % 2 != 0){
         bit_offset = 0;
-        byte_buffer = 0;
+        word_buffer = 0;
         // Read through whole file except the last byte
         for(size_t i = 0; i < r->file_size - 1; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
-            fread(buffer_l, sizeof(char), 1, r->file_ptr);
-            fread(buffer_r, sizeof(char), 1, r->file_ptr);
-            idx = ((idx | buffer_l[0]) << 8) | buffer_r[0];
+            fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
+            fread(byte_buffer_r, sizeof(char), 1, r->file_ptr);
+            idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
             for(size_t j = 0; j < code_len + 1; j++){
                 if(bit_offset >= 15){
                     if(j == 0){
                         // Write 1 for the first bit of Huffman code
-                        byte_buffer = (byte_buffer << 1) | 0x01;
+                        word_buffer = (word_buffer << 1) | 0x01;
                     }
                     else{
                         // Get the corresponfding Huffman code bit
-                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
-                    // Write byte
-                    fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
-                    byte_buffer = 0x00;
+                    // Write byte and reset buffer + offset counter
+                    byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
+                    byte_buffer[1] = (word_buffer & 0xFF);
+                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+                    word_buffer = 0x00;
                     bit_offset = 0;
                 }
                 else{
                     if(j == 0){
                         // Write 1 for the first bit of Huffman code
-                        byte_buffer = (byte_buffer << 1) | 0x01;
+                        word_buffer = (word_buffer << 1) | 0x01;
                     }
                     else{
                         // Get the corresponfding Huffman code bit
-                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
                     bit_offset++;
                 }
             }
         }
         // Read last byte and pad remaining byte with zeros
-        fread(buffer_l, sizeof(char), 1, r->file_ptr);
-        fread(buffer_r, sizeof(char), 1, r->file_ptr);
-        idx = ((idx | buffer_l[0]) << 8) | 0x00;
+        fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
+        idx = ((idx | byte_buffer_l[0]) << 8) | 0x00;
         code_len = strlen(h->huffman_code[idx]);
         for(size_t j = 0; j < code_len + 1; j++){
             if(bit_offset >= 15){
                 if(j == 0){
                     // Write 1 for the first bit of Huffman code
-                    byte_buffer = (byte_buffer << 1) | 0x01;
+                    word_buffer = (word_buffer << 1) | 0x01;
                 }
                 else{
                     // Get the corresponfding Huffman code bit
-                    byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                 }
-                // Write byte
-                fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
-                byte_buffer = 0x00;
+                // Write byte and reset buffer + offset counter
+                byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
+                byte_buffer[1] = (word_buffer & 0xFF);
+                fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+                word_buffer = 0x00;
                 bit_offset = 0;
             }
             else{
                 if(j == 0){
                     // Write 1 for the first bit of Huffman code
-                    byte_buffer = (byte_buffer << 1) | 0x01;
+                    word_buffer = (word_buffer << 1) | 0x01;
                 }
                 else{
                     // Get the corresponfding Huffman code bit
-                    byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                    word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                 }
                 bit_offset++;
             }
         }
-        // Write byte
-        fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
+        // If word buffer is not full, pad remaining bits with zeros by shifting left
+        if(bit_offset != 15){
+            word_buffer = word_buffer << (16 - bit_offset);
+        }
+        // Write byte and reset buffer + offset counter
+        byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
+        byte_buffer[1] = (word_buffer & 0xFF);
+        fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
     }
     else{
         bit_offset = 0;
-        byte_buffer = 0;
+        word_buffer = 0;
         // Read through whole file
         for(size_t i = 0; i < r->file_size - 1; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
-            fread(buffer_l, sizeof(char), 1, r->file_ptr);
-            fread(buffer_r, sizeof(char), 1, r->file_ptr);
-            idx = ((idx | buffer_l[0]) << 8) | buffer_r[0];
+            fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
+            fread(byte_buffer_r, sizeof(char), 1, r->file_ptr);
+            idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
             for(unsigned int j = 0; j < code_len + 1; j++){
                 if(bit_offset >= 15){
                     if(j == 0){
                         // Write 1 for the first bit of Huffman code
-                        byte_buffer = (byte_buffer << 1) | 0x01;
+                        word_buffer = (word_buffer << 1) | 0x01;
                     }
                     else{
                         // Get the corresponfding Huffman code bit
-                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
-                    // Write byte
-                    fwrite(&byte_buffer, sizeof(unsigned short), 1, output);
-                    byte_buffer = 0x00;
+                    // Write byte and reset buffer + offset counter
+                    byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
+                    byte_buffer[1] = (word_buffer & 0xFF);
+                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+                    word_buffer = 0x00;
                     bit_offset = 0;
                 }
                 else{
                     // Write 1 for the first bit of Huffman code
                     if(j == 0){
-                        byte_buffer = (byte_buffer << 1) | 0x01;
+                        word_buffer = (word_buffer << 1) | 0x01;
                     }
                     else{
                         // Get the corresponfding Huffman code bit
-                        byte_buffer = (byte_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
+                        word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j - 1] & 0x0F);
                     }
                     bit_offset++;
                 }
             }
         }
     }
+    
     rewind(r->file_ptr);
     fclose(output);
-    for(size_t i = 0; i < BLOCKS; i++){
-        if(r->counters[i].byte_count != 0){
-            printf("%x, %d\n", r->counters[i].byte_value, r->counters[i].byte_count);
-        }
-    }
     return 0;
 }

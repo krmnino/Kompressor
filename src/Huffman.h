@@ -37,6 +37,7 @@ struct Huffman{
     unsigned long n_elements;
     char** huffman_code;
     const char* filename;
+    HQueue* byte_counters;
 };
 Huffman* Huffman_init(Reader*, const char*);
 int Huffman_free(Huffman*);
