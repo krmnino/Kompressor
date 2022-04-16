@@ -286,6 +286,14 @@ int Huffman_compress(Huffman* h, Reader* r){
     HNode* curr;
     prev = NULL;
     curr = h->byte_counters->head;
+
+    // Write pair count into file header
+    byte_buffer[0] = (r->pairs_written & 0xFF000000) >> 24;
+    byte_buffer[1] = (r->pairs_written & 0xFF0000) >> 16;
+    byte_buffer[2] = (r->pairs_written & 0xFF00) >> 8;
+    byte_buffer[3] = r->pairs_written & 0xFF;
+    fwrite(&byte_buffer, sizeof(unsigned char), 4, output);
+
     // Write two-byte values into file header
     while(curr != NULL){
         byte_buffer[0] = (curr->pair->byte_value & 0xFF00) >> 8;
