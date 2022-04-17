@@ -60,6 +60,9 @@ int Reader_compress_count(Reader* r){
     if(r == NULL){
         return -1;
     }
+    if(r->file_ptr == NULL){
+        return -1;
+    }
 
     // Delcare byte-size buffers
     unsigned char buffer_l[1];
@@ -116,6 +119,9 @@ int Reader_decompress_count(Reader* r){
     if(r == NULL){
         return -1;
     }
+    if(r->file_ptr == NULL){
+        return -1;
+    }
 
     // Delcare byte-size buffers
     unsigned char buffer_l[1];
@@ -168,7 +174,7 @@ int Reader_reset_count(Reader* r){
 
 size_t _get_file_size(const char* fn){
     if(fn == NULL){
-        return NULL;
+        return -1;
     }
 
     FILE* f = fopen(fn, "rb");
@@ -193,6 +199,6 @@ int _pair_compare(const void* p1, const void* p2){
     else if(p1_->byte_count < p2_->byte_count){
         return 1;
     }
-    
+
     return 0;
 }
