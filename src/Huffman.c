@@ -5,6 +5,10 @@
 #include "Huffman.h"
 
 HNode* HNode_init(Pair* p){
+    if(p == NULL){
+        return NULL;
+    }
+
     HNode* node = (HNode*)malloc(sizeof(HNode));
     node->pair = p;
     node->q_next = NULL;
@@ -14,6 +18,10 @@ HNode* HNode_init(Pair* p){
 }
 
 int HNode_free(HNode* node){
+    if(node == NULL){
+        return -1;
+    }
+
     // Pair data member must be free'd before calling this function
     free(node);
     return 0;
@@ -23,6 +31,7 @@ int HNode_free_bfs(HNode* node){
     if(node == NULL){
         return -1;
     }
+
     // Initialize queue and HNode pointers
     HNode* prev = NULL;
     HNode* curr = node;
@@ -53,10 +62,10 @@ HQueue* HQueue_init(){
 }
 
 int HQueue_free(HQueue* queue){
-    // Check if node is null (invalid input)
     if(queue == NULL){
         return -1;
     }
+
     // Traverse queue by moving to the next node and free'ing the previous one
     HNode* prev = NULL;
     HNode* curr = queue->head;
@@ -66,16 +75,17 @@ int HQueue_free(HQueue* queue){
         free(prev->pair);
         HNode_free(prev);
     }
+
     // Free queue
     free(queue);
     return 0;
 }
 
 int HNode_dfs(HNode* node, int level_count, char* code_buffer, char** huffman_code){
-    // Check if node is null (invalid input)
     if(node == NULL){
         return -1;
     }
+
     // If current node is a leaf (contains two-byte value)
     if(node->t_left == NULL && node->t_right == NULL){
         // Clear remaining entries in code buffer beyond the current level index
@@ -102,13 +112,18 @@ int HNode_dfs(HNode* node, int level_count, char* code_buffer, char** huffman_co
         // Recursive call to HNode_dfs with increased level count
         HNode_dfs(node->t_right, level_count + 1, code_buffer, huffman_code);
     }
+
     return 0;
 }
 
 int HQueue_push(HQueue* queue, HNode* node){
-    if(queue == NULL || node == NULL){
+    if(queue == NULL){
         return -1;
     }
+    if(node == NULL){
+        return -1;
+    }
+
     // If queue is empty; then, set the head and tail
     if(queue->n_elements == 0){
         queue->head = node;
@@ -124,10 +139,13 @@ int HQueue_push(HQueue* queue, HNode* node){
 }
 
 int HQueue_enqueue(HQueue* queue, HNode* node){
-    // Check is queue pointer and node pointer is valid
-    if(queue == NULL || node == NULL){
+    if(queue == NULL){
         return -1;
     }
+    if(node == NULL){
+        return -1;
+    }
+
     // If queue is empty, node must be head and tail of queue
     if(queue->n_elements == 0){
         queue->head = node;
@@ -165,32 +183,36 @@ int HQueue_enqueue(HQueue* queue, HNode* node){
         prev = curr;
         curr = curr->q_next;
     }
+
+    return 0;
 }
 
 HNode* HQueue_dequeue(HQueue* queue){
-    // Check if queue pointer is valid
     if(queue == NULL){
         return NULL;
     }
+
     // Retrieve node from front of queue
     HNode* node = queue->head;
     queue->head = queue->head->q_next;
     node->q_next = NULL;
     queue->n_elements--;
+
     return node; 
 }
 
 int HQueue_display_queue(HQueue* queue){
-    // Check if queue pointer is valid
     if(queue == NULL){
         return -1;
     }
+
     HNode* curr = queue->head;
     // Traverse queue and print each pair
     while(curr != NULL){
         printf("[%4x, %d]\n", curr->pair->byte_value, curr->pair->byte_count);
         curr = curr->q_next;
     }
+
     return 0;
 }
 
@@ -198,6 +220,10 @@ Huffman* Huffman_init(Reader* r, const char* fn){
     if(r == NULL){
         return NULL;
     }
+    if(fn == NULL){
+        return NULL;
+    }
+
     Huffman* h = (Huffman*)malloc(sizeof(Huffman));
     h->n_elements = r->pairs_written;
     h->filename = fn;
@@ -258,11 +284,16 @@ Huffman* Huffman_init(Reader* r, const char* fn){
 }
 
 int Huffman_free(Huffman* h){
+    if(h == NULL){
+        return -1;
+    }
+
     for(unsigned int i = 0; i < BLOCKS; i++){
         if(h->huffman_code[i] != NULL){
             free(h->huffman_code[i]);
         }
     }
+
     HQueue_free(h->byte_counters);
     free(h->huffman_code);
     free(h);
@@ -270,6 +301,13 @@ int Huffman_free(Huffman* h){
 }
 
 int Huffman_compress(Huffman* h, Reader* r){
+    if(h == NULL){
+        return -1;
+    }
+    if(r == NULL){
+        return -1;
+    }
+
     // Delcare byte-size buffers
     size_t code_len;
     unsigned int double_word_buffer;
@@ -279,6 +317,7 @@ int Huffman_compress(Huffman* h, Reader* r){
     unsigned short idx;
     unsigned char byte_buffer_l[1];
     unsigned char byte_buffer_r[1];
+    unsigned char last_bit_offset;
     FILE* output;
     output = fopen(h->filename, "w");
 
@@ -294,6 +333,10 @@ int Huffman_compress(Huffman* h, Reader* r){
     byte_buffer[3] = r->pairs_written & 0xFF;
     fwrite(&byte_buffer, sizeof(unsigned char), 4, output);
 
+    // Write last two-byte offset after pair count
+    byte_buffer[0] = 0x00;
+    fwrite(&byte_buffer, sizeof(unsigned char), 1, output);
+    
     // Write two-byte values into file header
     while(curr != NULL){
         byte_buffer[0] = (curr->pair->byte_value & 0xFF00) >> 8;
@@ -367,11 +410,14 @@ int Huffman_compress(Huffman* h, Reader* r){
         // If word buffer is not full, pad remaining bits with zeros by shifting left
         if(bit_offset != 15){
             word_buffer = word_buffer << (16 - bit_offset);
+            last_bit_offset = 16 - bit_offset;
         }
         // Write byte and reset buffer + offset counter
         byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
         byte_buffer[1] = (word_buffer & 0xFF);
         fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+        fseek(output, sizeof(unsigned int), SEEK_SET);    
+        fwrite(&last_bit_offset, sizeof(unsigned char), 1, output);
     }
     else{
         bit_offset = 0;
@@ -406,5 +452,10 @@ int Huffman_compress(Huffman* h, Reader* r){
     
     rewind(r->file_ptr);
     fclose(output);
+    return 0;
+}
+
+int Huffman_decompress(Huffman* h, Reader* r){
+    
     return 0;
 }
