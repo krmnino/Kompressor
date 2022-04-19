@@ -26,11 +26,13 @@ Reader* Reader_init(const char* fn){
         return NULL;
     }
 
+    // Set Reader's data member values
     Reader* r = (Reader*)malloc(sizeof(Reader));
     r->filename = fn;
-    r->file_ptr = fopen(fn, "rb");
-    r->counters = (Pair*)calloc(BLOCKS, sizeof(Pair));
     r->file_size = _get_file_size(fn);
+
+    // Initialize byte counters
+    r->counters = (Pair*)calloc(BLOCKS, sizeof(Pair));
     for(unsigned int i = 0; i < BLOCKS; i++){
         r->counters[i].byte_value = (unsigned short)i;
         r->counters[i].byte_count = 0;
@@ -44,12 +46,6 @@ int Reader_free(Reader* r){
         return -1;
     }
 
-    // Close file and check if successful
-    int ret_code = fclose(r->file_ptr);
-    if(ret_code != 0){
-        return -1;
-    }
-
     // Free up counter array and Reader object
     free(r->counters);
     free(r);
@@ -60,29 +56,29 @@ int Reader_compress_count(Reader* r){
     if(r == NULL){
         return -1;
     }
-    if(r->file_ptr == NULL){
-        return -1;
-    }
+    FILE* input_file;
+    input_file = fopen(r->filename, "r");
 
     // Delcare byte-size buffers
     unsigned char buffer_l[1];
     unsigned char buffer_r[1];
     unsigned short idx;
 
+
     // Scan file byte by byte and count
     if(r->file_size % 2 != 0){
         for(size_t i = 0; i < r->file_size - 1; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
-            fread(buffer_l, sizeof(char), 1, r->file_ptr);
-            fread(buffer_r, sizeof(char), 1, r->file_ptr);
+            fread(buffer_l, sizeof(char), 1, input_file);
+            fread(buffer_r, sizeof(char), 1, input_file);
             idx = (idx | (unsigned short)buffer_l[0]) << 8;
             idx = (idx | (unsigned short)buffer_r[0]);
             // Increase index count by one 
             r->counters[idx].byte_count++;
         }
         // Read last byte and pad remaining byte with zeros
-        fread(buffer_l, sizeof(char), 1, r->file_ptr);
+        fread(buffer_l, sizeof(char), 1, input_file);
         idx = (idx | (unsigned short)buffer_l[0]) << 8;
         idx = (idx | 0x00);
         buffer_r[0] = 0x00;
@@ -93,16 +89,16 @@ int Reader_compress_count(Reader* r){
         for(size_t i = 0; i < r->file_size - 1; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
-            fread(buffer_l, sizeof(char), 1, r->file_ptr);
-            fread(buffer_r, sizeof(char), 1, r->file_ptr);
+            fread(buffer_l, sizeof(char), 1, input_file);
+            fread(buffer_r, sizeof(char), 1, input_file);
             idx = (idx | (unsigned short)buffer_l[0]) << 8;
             idx = (idx | (unsigned short)buffer_r[0]);
             // Increase index count by one 
             r->counters[idx].byte_count++;
         }
     }
-    // Bring file pointer back to start
-    rewind(r->file_ptr);
+    
+    fclose(input_file);
 
     // Sort counters and determine how many byte pairs were written
     qsort(r->counters, BLOCKS, sizeof(Pair), _pair_compare);
@@ -119,20 +115,20 @@ int Reader_decompress_count(Reader* r){
     if(r == NULL){
         return -1;
     }
-    if(r->file_ptr == NULL){
-        return -1;
-    }
 
     // Delcare byte-size buffers
     unsigned char buffer_l[1];
     unsigned char buffer_r[1];
     unsigned short idx;
 
+    FILE* input_file;
+    input_file = fopen(r->filename, "r");
+
     for(size_t i = 0; i < r->file_size; i += 2){
         // Read 2 bytes to create index value
         idx = 0;
-        fread(buffer_l, sizeof(char), 1, r->file_ptr);
-        fread(buffer_r, sizeof(char), 1, r->file_ptr);
+        fread(buffer_l, sizeof(char), 1, input_file);
+        fread(buffer_r, sizeof(char), 1, input_file);
         idx = (idx | (unsigned short)buffer_l[0]) << 8;
         idx = (idx | (unsigned short)buffer_r[0]);
     }

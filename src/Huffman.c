@@ -36,6 +36,7 @@ int HNode_free_bfs(HNode* node){
     HNode* prev = NULL;
     HNode* curr = node;
     HQueue* queue = HQueue_init();
+    
     // Perform breadth search first, push back child nodes and free parents
     while(curr != NULL){
         if(curr->t_left != NULL){
@@ -46,9 +47,12 @@ int HNode_free_bfs(HNode* node){
         }
         prev = curr;
         curr = curr->q_next;
-        free(prev->pair);
+        // Free Pair individually
+        Pair_free(prev->pair);
+        // When free previous node
         HNode_free(prev);
     }
+
     // Free queue
     free(queue);
     return 0;
@@ -135,6 +139,7 @@ int HQueue_push(HQueue* queue, HNode* node){
     queue->tail->q_next = node;
     queue->tail = node;
     queue->n_elements++;
+
     return 0;
 }
 
@@ -272,8 +277,8 @@ Huffman* Huffman_init(Reader* r, const char* fn){
     HQueue_free(queue);
 
     // Perform depth search first to generate Huffman codes
-    h->huffman_code = (char**)malloc(BLOCKS * sizeof(char*));
-    char* code_buffer = (char*)malloc(BLOCKS * sizeof(char));
+    h->huffman_code = (char**)calloc(BLOCKS, sizeof(char*));
+    char* code_buffer = (char*)calloc(BLOCKS, sizeof(char));
     HNode_dfs(root, 0, code_buffer, h->huffman_code);
 
     // Free up buffer and binary tree from root
@@ -288,12 +293,14 @@ int Huffman_free(Huffman* h){
         return -1;
     }
 
+    // Free up huffman codes written in array
     for(unsigned int i = 0; i < BLOCKS; i++){
         if(h->huffman_code[i] != NULL){
             free(h->huffman_code[i]);
         }
     }
 
+    // Free up HQueue, huffman code array, and Huffman obj
     HQueue_free(h->byte_counters);
     free(h->huffman_code);
     free(h);
@@ -308,40 +315,44 @@ int Huffman_compress(Huffman* h, Reader* r){
         return -1;
     }
 
-    // Delcare byte-size buffers
+    // Delcare byte-size buffers and other variables
     size_t code_len;
     unsigned int double_word_buffer;
     unsigned short word_buffer;
-    unsigned char byte_buffer[4];
     unsigned short bit_offset;
     unsigned short idx;
+    unsigned char byte_buffer[4];
     unsigned char byte_buffer_l[1];
     unsigned char byte_buffer_r[1];
     unsigned char last_bit_offset;
-    FILE* output;
-    output = fopen(h->filename, "w");
 
-    HNode* prev;
-    HNode* curr;
-    prev = NULL;
-    curr = h->byte_counters->head;
+    // Open input and output files
+    FILE* input_file;
+    FILE* output_file;
+    input_file = fopen(r->filename, "r");
+    output_file = fopen(h->filename, "w");
 
     // Write pair count into file header
     byte_buffer[0] = (r->pairs_written & 0xFF000000) >> 24;
     byte_buffer[1] = (r->pairs_written & 0xFF0000) >> 16;
     byte_buffer[2] = (r->pairs_written & 0xFF00) >> 8;
     byte_buffer[3] = r->pairs_written & 0xFF;
-    fwrite(&byte_buffer, sizeof(unsigned char), 4, output);
+    fwrite(&byte_buffer, sizeof(unsigned char), 4, output_file);
 
     // Write last two-byte offset after pair count
     byte_buffer[0] = 0x00;
-    fwrite(&byte_buffer, sizeof(unsigned char), 1, output);
-    
+    fwrite(&byte_buffer, sizeof(unsigned char), 1, output_file);
+
+    // Declare and init Nodes needed to write Pairs
+    HNode* prev;
+    HNode* curr;
+    prev = NULL;
+    curr = h->byte_counters->head;
     // Write two-byte values into file header
     while(curr != NULL){
         byte_buffer[0] = (curr->pair->byte_value & 0xFF00) >> 8;
         byte_buffer[1] = curr->pair->byte_value & 0xFF;
-        fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+        fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
         curr = curr->q_next;
     }
     // Write two-byte value counts into file header
@@ -352,7 +363,7 @@ int Huffman_compress(Huffman* h, Reader* r){
         byte_buffer[1] = (curr->pair->byte_count & 0xFF0000) >> 16;
         byte_buffer[2] = (curr->pair->byte_count & 0xFF00) >> 8;
         byte_buffer[3] = curr->pair->byte_count & 0xFF;
-        fwrite(&byte_buffer, sizeof(unsigned char), 4, output);
+        fwrite(&byte_buffer, sizeof(unsigned char), 4, output_file);
         curr = curr->q_next;
     }
 
@@ -364,8 +375,8 @@ int Huffman_compress(Huffman* h, Reader* r){
         for(size_t i = 0; i < r->file_size - 1; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
-            fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
-            fread(byte_buffer_r, sizeof(char), 1, r->file_ptr);
+            fread(byte_buffer_l, sizeof(char), 1, input_file);
+            fread(byte_buffer_r, sizeof(char), 1, input_file);
             idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
             for(size_t j = 0; j < code_len; j++){
@@ -375,7 +386,7 @@ int Huffman_compress(Huffman* h, Reader* r){
                     // Write byte and reset buffer + offset counter
                     byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
                     byte_buffer[1] = (word_buffer & 0xFF);
-                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
                     word_buffer = 0x00;
                     bit_offset = 0;
                 }
@@ -387,7 +398,7 @@ int Huffman_compress(Huffman* h, Reader* r){
             }
         }
         // Read last byte and pad remaining byte with zeros
-        fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
+        fread(byte_buffer_l, sizeof(char), 1, input_file);
         idx = ((idx | byte_buffer_l[0]) << 8) | 0x00;
         code_len = strlen(h->huffman_code[idx]);
         for(size_t j = 0; j < code_len; j++){
@@ -397,7 +408,7 @@ int Huffman_compress(Huffman* h, Reader* r){
                 // Write byte and reset buffer + offset counter
                 byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
                 byte_buffer[1] = (word_buffer & 0xFF);
-                fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+                fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
                 word_buffer = 0x00;
                 bit_offset = 0;
             }
@@ -415,9 +426,9 @@ int Huffman_compress(Huffman* h, Reader* r){
         // Write byte and reset buffer + offset counter
         byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
         byte_buffer[1] = (word_buffer & 0xFF);
-        fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
-        fseek(output, sizeof(unsigned int), SEEK_SET);    
-        fwrite(&last_bit_offset, sizeof(unsigned char), 1, output);
+        fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
+        fseek(output_file, sizeof(unsigned int), SEEK_SET);    
+        fwrite(&last_bit_offset, sizeof(unsigned char), 1, output_file);
     }
     else{
         bit_offset = 0;
@@ -426,8 +437,8 @@ int Huffman_compress(Huffman* h, Reader* r){
         for(size_t i = 0; i < r->file_size - 1; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
-            fread(byte_buffer_l, sizeof(char), 1, r->file_ptr);
-            fread(byte_buffer_r, sizeof(char), 1, r->file_ptr);
+            fread(byte_buffer_l, sizeof(char), 1, input_file);
+            fread(byte_buffer_r, sizeof(char), 1, input_file);
             idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
             for(unsigned int j = 0; j < code_len; j++){
@@ -437,7 +448,7 @@ int Huffman_compress(Huffman* h, Reader* r){
                     // Write byte and reset buffer + offset counter
                     byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
                     byte_buffer[1] = (word_buffer & 0xFF);
-                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output);
+                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
                     word_buffer = 0x00;
                     bit_offset = 0;
                 }
@@ -450,8 +461,8 @@ int Huffman_compress(Huffman* h, Reader* r){
         }
     }
     
-    rewind(r->file_ptr);
-    fclose(output);
+    fclose(input_file);
+    fclose(output_file);
     return 0;
 }
 

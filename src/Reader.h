@@ -17,7 +17,6 @@ int Pair_free(Pair*);
 typedef struct Reader Reader;
 struct Reader{
     size_t file_size;
-    FILE* file_ptr;
     Pair* counters;
     const char* filename;
     int pairs_written;
