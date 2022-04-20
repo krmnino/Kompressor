@@ -287,7 +287,7 @@ int Huffman_compress(Huffman* h, Reader* r){
         p = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
         p_bc = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
         node = HNode_init(p);
-        node_bc = HNode_init(p);
+        node_bc = HNode_init(p_bc);
         HQueue_enqueue(queue, node);
         HQueue_enqueue(h->byte_counters, node_bc);
     }
@@ -324,11 +324,10 @@ int Huffman_compress(Huffman* h, Reader* r){
 
     // Delcare byte-size buffers and other variables
     size_t code_len;
-    unsigned int double_word_buffer;
     unsigned short word_buffer;
     unsigned short bit_offset;
     unsigned short idx;
-    unsigned char byte_buffer[4];
+    unsigned char byte_buffer;
     unsigned char byte_buffer_l[1];
     unsigned char byte_buffer_r[1];
     unsigned char last_bit_offset;
@@ -340,37 +339,24 @@ int Huffman_compress(Huffman* h, Reader* r){
     output_file = fopen(h->filename, "w");
 
     // Write pair count into file header
-    byte_buffer[0] = (r->pairs_written & 0xFF000000) >> 24;
-    byte_buffer[1] = (r->pairs_written & 0xFF0000) >> 16;
-    byte_buffer[2] = (r->pairs_written & 0xFF00) >> 8;
-    byte_buffer[3] = r->pairs_written & 0xFF;
-    fwrite(&byte_buffer, sizeof(unsigned char), 4, output_file);
+    fwrite(&r->pairs_written, sizeof(unsigned int), 1, output_file);
 
     // Write last two-byte offset after pair count
-    byte_buffer[0] = 0x00;
+    byte_buffer = 0x00;
     fwrite(&byte_buffer, sizeof(unsigned char), 1, output_file);
 
     // Declare and init Nodes needed to write Pairs
-    HNode* prev;
     HNode* curr;
-    prev = NULL;
     curr = h->byte_counters->head;
     // Write two-byte values into file header
     while(curr != NULL){
-        byte_buffer[0] = (curr->pair->byte_value & 0xFF00) >> 8;
-        byte_buffer[1] = curr->pair->byte_value & 0xFF;
-        fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
+        fwrite(&curr->pair->byte_value, sizeof(unsigned short), 1, output_file);
         curr = curr->q_next;
     }
     // Write two-byte value counts into file header
-    prev = NULL;
     curr = h->byte_counters->head;
     while(curr != NULL){
-        byte_buffer[0] = (curr->pair->byte_count & 0xFF000000) >> 24;
-        byte_buffer[1] = (curr->pair->byte_count & 0xFF0000) >> 16;
-        byte_buffer[2] = (curr->pair->byte_count & 0xFF00) >> 8;
-        byte_buffer[3] = curr->pair->byte_count & 0xFF;
-        fwrite(&byte_buffer, sizeof(unsigned char), 4, output_file);
+        fwrite(&curr->pair->byte_count, sizeof(unsigned int), 1, output_file);
         curr = curr->q_next;
     }
 
@@ -390,10 +376,7 @@ int Huffman_compress(Huffman* h, Reader* r){
                 if(bit_offset >= 15){
                     // Get the corresponfding Huffman code bit
                     word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
-                    // Write byte and reset buffer + offset counter
-                    byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
-                    byte_buffer[1] = (word_buffer & 0xFF);
-                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
+                    fwrite(&word_buffer, sizeof(unsigned short), 1, output_file);
                     word_buffer = 0x00;
                     bit_offset = 0;
                 }
@@ -412,10 +395,7 @@ int Huffman_compress(Huffman* h, Reader* r){
             if(bit_offset >= 15){
                 // Get the corresponfding Huffman code bit
                 word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
-                // Write byte and reset buffer + offset counter
-                byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
-                byte_buffer[1] = (word_buffer & 0xFF);
-                fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
+                fwrite(&word_buffer, sizeof(unsigned short), 1, output_file);
                 word_buffer = 0x00;
                 bit_offset = 0;
             }
@@ -430,10 +410,7 @@ int Huffman_compress(Huffman* h, Reader* r){
             word_buffer = word_buffer << (16 - bit_offset);
             last_bit_offset = 16 - bit_offset;
         }
-        // Write byte and reset buffer + offset counter
-        byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
-        byte_buffer[1] = (word_buffer & 0xFF);
-        fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
+        fwrite(&word_buffer, sizeof(unsigned short), 1, output_file);
         fseek(output_file, sizeof(unsigned int), SEEK_SET);    
         fwrite(&last_bit_offset, sizeof(unsigned char), 1, output_file);
     }
@@ -452,10 +429,7 @@ int Huffman_compress(Huffman* h, Reader* r){
                 if(bit_offset >= 15){
                     // Get the corresponfding Huffman code bit
                     word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
-                    // Write byte and reset buffer + offset counter
-                    byte_buffer[0] = (word_buffer & 0xFF00) >> 8;
-                    byte_buffer[1] = (word_buffer & 0xFF);
-                    fwrite(&byte_buffer, sizeof(unsigned char), 2, output_file);
+                    fwrite(&word_buffer, sizeof(unsigned short), 1, output_file);
                     word_buffer = 0x00;
                     bit_offset = 0;
                 }
@@ -474,6 +448,63 @@ int Huffman_compress(Huffman* h, Reader* r){
 }
 
 int Huffman_decompress(Huffman* h, Reader* r){
-    
+    if(h == NULL){
+        return -1;
+    }
+    if(r == NULL){
+        return -1;
+    }
+
+    // Declare local variables
+    HQueue* queue;
+    size_t byte_count_offset;
+    unsigned short word_buffer;
+    unsigned int double_word_buffer;
+    FILE* input_file;
+
+    // Open input file
+    input_file = fopen(r->filename, "r");
+
+    // Initialize queue
+    queue = HQueue_init();
+
+    // Read byte values and byte counts from file
+    for(unsigned int i = 0; i < r->pairs_written; i++){
+        // Calculate byte offset for byte_value after the first 5 bytes in header + current value
+        byte_count_offset = (sizeof(unsigned int) + sizeof(unsigned char));
+        byte_count_offset = byte_count_offset + (sizeof(unsigned short) * i);
+        fseek(input_file, byte_count_offset, SEEK_SET);
+        // Read two-byte value from from file
+        fread(&word_buffer, sizeof(unsigned short), 1, input_file);
+
+        // Calculate byte offset for byte_value after (the first 5 bytes in header + byte_value * total_count) + current value
+        byte_count_offset = (sizeof(unsigned int) + sizeof(unsigned char)) + (r->pairs_written * sizeof(unsigned short));
+        byte_count_offset = byte_count_offset + (sizeof(unsigned int) * i);
+        fseek(input_file, byte_count_offset, SEEK_SET);
+        // Read two-byte value from from file
+        fread(&double_word_buffer, sizeof(unsigned int), 1, input_file);
+
+        printf("-> %x - %d\n", word_buffer, double_word_buffer);
+    }
+
+    // pair_count * (short_size + int_size) + int_size
+    size_t data_section_offset = sizeof(unsigned int) + (r->pairs_written * (sizeof(unsigned short) + sizeof(unsigned int)));
+    // (total_file_size - data_section_offset) / 2 (read 2 bytes per iteration)
+    size_t data_section_size = (r->file_size - data_section_offset) / 2;
+
+    if(data_section_size % 2 != 0){
+        for(unsigned int i = 0; i < data_section_size - 1; i++){
+            fread(&word_buffer, sizeof(unsigned short), 1, input_file);
+            printf("-> %x\n", word_buffer);
+        }
+    }
+    else{
+        for(unsigned int i = 0; i < data_section_size; i++){
+            fread(&word_buffer, sizeof(unsigned short), 1, input_file);
+            printf("-> %x\n", word_buffer);
+        }
+    }
+
+    fclose(input_file);
     return 0;
 }
