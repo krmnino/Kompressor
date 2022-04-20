@@ -229,61 +229,14 @@ Huffman* Huffman_init(Reader* r, const char* fn){
         return NULL;
     }
 
+    // Allocate Huffman object
     Huffman* h = (Huffman*)malloc(sizeof(Huffman));
+
+    // Initialize Huffman object data members
     h->n_elements = r->pairs_written;
     h->filename = fn;
-
-    // Initialize queues
-    HQueue* queue = HQueue_init();
     h->byte_counters = HQueue_init();
-
-    // Fill queues with Reader counter data
-    Pair* p;
-    Pair* p_bc;
-    HNode* node;
-    HNode* node_bc;
-    for(unsigned int i = 0; i < BLOCKS && r->counters[i].byte_count != 0; i++) {
-        p = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
-        p_bc = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
-        node = HNode_init(p);
-        node_bc = HNode_init(p);
-        HQueue_enqueue(queue, node);
-        HQueue_enqueue(h->byte_counters, node_bc);
-    }
-
-    // Build binary tree from queue
-    HNode* n1;
-    HNode* n2;
-    while(1){
-        // If there is one or less elements in queue, exit
-        if(queue->n_elements <= 1){
-            break;
-        }
-        // Get first 2 nodes in queue
-        n1 = HQueue_dequeue(queue);
-        n2 = HQueue_dequeue(queue);
-        // Add byte count from both nodes
-        p = Pair_init(0, n1->pair->byte_count + n2->pair->byte_count);
-        node = HNode_init(p);
-        // Make them left and right child nodes
-        node->t_left = n1;
-        node->t_right = n2;
-        // Enqueue new parent node
-        HQueue_enqueue(queue, node);
-    }
-
-    // Retrieve root and free queue object
-    HNode* root = HQueue_dequeue(queue);
-    HQueue_free(queue);
-
-    // Perform depth search first to generate Huffman codes
     h->huffman_code = (char**)calloc(BLOCKS, sizeof(char*));
-    char* code_buffer = (char*)calloc(BLOCKS, sizeof(char));
-    HNode_dfs(root, 0, code_buffer, h->huffman_code);
-
-    // Free up buffer and binary tree from root
-    free(code_buffer);
-    HNode_free_bfs(root);
     
     return h;
 }
@@ -315,6 +268,60 @@ int Huffman_compress(Huffman* h, Reader* r){
         return -1;
     }
 
+    // Declare local variables for queue fill and tree creation
+    HQueue* queue;
+    HNode* node;
+    HNode* node_bc;
+    HNode* n1;
+    HNode* n2;
+    Pair* p;
+    Pair* p_bc;
+    char* code_buffer;
+
+    // Initialize queue and code buffer
+    queue = HQueue_init();
+    code_buffer = (char*)calloc(BLOCKS, sizeof(char));
+
+    // Fill queues with Reader counter data
+    for(unsigned int i = 0; i < BLOCKS && r->counters[i].byte_count != 0; i++) {
+        p = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
+        p_bc = Pair_init(r->counters[i].byte_value, r->counters[i].byte_count);
+        node = HNode_init(p);
+        node_bc = HNode_init(p);
+        HQueue_enqueue(queue, node);
+        HQueue_enqueue(h->byte_counters, node_bc);
+    }
+
+    // Build binary tree from queue
+    while(1){
+        // If there is one or less elements in queue, exit
+        if(queue->n_elements <= 1){
+            break;
+        }
+        // Get first 2 nodes in queue
+        n1 = HQueue_dequeue(queue);
+        n2 = HQueue_dequeue(queue);
+        // Add byte count from both nodes
+        p = Pair_init(0, n1->pair->byte_count + n2->pair->byte_count);
+        node = HNode_init(p);
+        // Make them left and right child nodes
+        node->t_left = n1;
+        node->t_right = n2;
+        // Enqueue new parent node
+        HQueue_enqueue(queue, node);
+    }
+
+    // Retrieve root and free queue object
+    HNode* root = HQueue_dequeue(queue);
+    HQueue_free(queue);
+
+    // Perform depth search first to generate Huffman codes
+    HNode_dfs(root, 0, code_buffer, h->huffman_code);
+
+    // Free up buffer and binary tree from root
+    free(code_buffer);
+    HNode_free_bfs(root);
+
     // Delcare byte-size buffers and other variables
     size_t code_len;
     unsigned int double_word_buffer;
@@ -325,10 +332,10 @@ int Huffman_compress(Huffman* h, Reader* r){
     unsigned char byte_buffer_l[1];
     unsigned char byte_buffer_r[1];
     unsigned char last_bit_offset;
-
-    // Open input and output files
     FILE* input_file;
     FILE* output_file;
+
+    // Open input and output files
     input_file = fopen(r->filename, "r");
     output_file = fopen(h->filename, "w");
 
