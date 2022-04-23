@@ -19,7 +19,8 @@ struct Reader{
     size_t file_size;
     Pair* counters;
     const char* filename;
-    int pairs_written;
+    unsigned int pairs_written;
+    unsigned char last_bit_offset;
 };
 Reader* Reader_init(const char*);
 int Reader_free(Reader*);

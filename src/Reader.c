@@ -64,7 +64,6 @@ int Reader_compress_count(Reader* r){
     unsigned char buffer_r[1];
     unsigned short idx;
 
-
     // Scan file byte by byte and count
     if(r->file_size % 2 != 0){
         for(size_t i = 0; i < r->file_size - 1; i += 2){
@@ -116,23 +115,15 @@ int Reader_decompress_count(Reader* r){
         return -1;
     }
 
-    // Delcare byte-size buffers
-    unsigned char buffer_l[1];
-    unsigned char buffer_r[1];
-    unsigned short idx;
-
+    // Open input file
     FILE* input_file;
     input_file = fopen(r->filename, "r");
 
-    for(size_t i = 0; i < r->file_size; i += 2){
-        // Read 2 bytes to create index value
-        idx = 0;
-        fread(buffer_l, sizeof(char), 1, input_file);
-        fread(buffer_r, sizeof(char), 1, input_file);
-        idx = (idx | (unsigned short)buffer_l[0]) << 8;
-        idx = (idx | (unsigned short)buffer_r[0]);
-    }
+    // Read pair count and last bit offset
+    fread(&r->pairs_written, sizeof(unsigned int), 1, input_file);
+    fread(&r->last_bit_offset, sizeof(unsigned char), 1, input_file);
 
+    fclose(input_file);
     return 0;
 }
 
