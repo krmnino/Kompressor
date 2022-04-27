@@ -58,33 +58,6 @@ int HNode_free_bfs(HNode* node){
     return 0;
 }
 
-HQueue* HQueue_init(){
-    HQueue* queue = (HQueue*)malloc(sizeof(HQueue));
-    queue->head = NULL;
-    queue->n_elements = 0;
-    return queue;
-}
-
-int HQueue_free(HQueue* queue){
-    if(queue == NULL){
-        return -1;
-    }
-
-    // Traverse queue by moving to the next node and free'ing the previous one
-    HNode* prev = NULL;
-    HNode* curr = queue->head;
-    while(curr != NULL){
-        prev = curr;
-        curr = curr->q_next;
-        free(prev->pair);
-        HNode_free(prev);
-    }
-
-    // Free queue
-    free(queue);
-    return 0;
-}
-
 int HNode_dfs(HNode* node, int level_count, char* code_buffer, char** huffman_code){
     if(node == NULL){
         return -1;
@@ -117,6 +90,43 @@ int HNode_dfs(HNode* node, int level_count, char* code_buffer, char** huffman_co
         HNode_dfs(node->t_right, level_count + 1, code_buffer, huffman_code);
     }
 
+    return 0;
+}
+
+int HNode_is_child(HNode* node){
+    if(node == NULL){
+        return -1;
+    }
+    if(node->t_left == NULL && node->t_right == NULL){
+        return 1; // Return true;
+    }
+    return 0; // Return false;
+}
+
+HQueue* HQueue_init(){
+    HQueue* queue = (HQueue*)malloc(sizeof(HQueue));
+    queue->head = NULL;
+    queue->n_elements = 0;
+    return queue;
+}
+
+int HQueue_free(HQueue* queue){
+    if(queue == NULL){
+        return -1;
+    }
+
+    // Traverse queue by moving to the next node and free'ing the previous one
+    HNode* prev = NULL;
+    HNode* curr = queue->head;
+    while(curr != NULL){
+        prev = curr;
+        curr = curr->q_next;
+        free(prev->pair);
+        HNode_free(prev);
+    }
+
+    // Free queue
+    free(queue);
     return 0;
 }
 
@@ -457,10 +467,18 @@ int Huffman_decompress(Huffman* h, Reader* r){
 
     // Declare local variables
     HQueue* queue;
+    HNode* node;
+    HNode* left_node;
+    HNode* right_node;
+    Pair* pair;
     size_t byte_count_offset;
+    unsigned char two_byte_buffer[2];
     unsigned short word_buffer;
     unsigned int double_word_buffer;
+    unsigned short bit;
+    unsigned short max_bits;
     FILE* input_file;
+    FILE* output_file;
 
     // Open input file
     input_file = fopen(r->filename, "r");
@@ -484,27 +502,186 @@ int Huffman_decompress(Huffman* h, Reader* r){
         // Read two-byte value from from file
         fread(&double_word_buffer, sizeof(unsigned int), 1, input_file);
 
-        printf("-> %x - %d\n", word_buffer, double_word_buffer);
+        // Allocate and store HNode into queue
+        pair = Pair_init(word_buffer, double_word_buffer);
+        node = HNode_init(pair);
+        HQueue_push(queue, node);
     }
 
-    // pair_count * (short_size + int_size) + int_size
-    size_t data_section_offset = sizeof(unsigned int) + (r->pairs_written * (sizeof(unsigned short) + sizeof(unsigned int)));
-    // (total_file_size - data_section_offset) / 2 (read 2 bytes per iteration)
-    size_t data_section_size = (r->file_size - data_section_offset) / 2;
+    // Build binary tree from queue
+    while(1){
+        // If there is one or less elements in queue, exit
+        if(queue->n_elements <= 1){
+            break;
+        }
+        // Get first 2 nodes in queue
+        left_node = HQueue_dequeue(queue);
+        right_node = HQueue_dequeue(queue);
+        // Add byte count from both nodes
+        pair = Pair_init(0, left_node->pair->byte_count + right_node->pair->byte_count);
+        node = HNode_init(pair);
+        // Make them left and right child nodes
+        node->t_left = left_node;
+        node->t_right = right_node;
+        // Enqueue new parent node
+        HQueue_enqueue(queue, node);
+    }
 
+    // Retrieve root and free queue object
+    HNode* root = HQueue_dequeue(queue);
+    HQueue_free(queue);
+
+    // data_section = offset = pair_count * (short_size + int_size) + int_size
+    size_t data_section_offset = sizeof(unsigned int) + (r->pairs_written * (sizeof(unsigned short) + sizeof(unsigned int)));
+    // data_section_size = (total_file_size - data_section_offset) / 2 (read 2 bytes per iteration)
+    size_t data_section_size = (r->file_size - data_section_offset) / 2;
+    unsigned short bit_position = 0;
+
+    output_file = fopen(h->filename, "w");
+
+    // If data section size is not even...
     if(data_section_size % 2 != 0){
         for(unsigned int i = 0; i < data_section_size - 1; i++){
-            fread(&word_buffer, sizeof(unsigned short), 1, input_file);
-            printf("-> %x\n", word_buffer);
+            fread(&two_byte_buffer, sizeof(unsigned char), 2, input_file);
+            two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+            two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+            two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+            word_buffer = (two_byte_buffer[0] << 8) | two_byte_buffer[1];
+            // If in last word, restrict reading bits
+            if(i == data_section_size - 1){
+                max_bits = 16 - r->last_bit_offset;
+            }
+            // Else, read the whole word
+            else{
+                max_bits = 16;
+            }
+            for(unsigned int j = 0; j < max_bits; j++){
+                bit = word_buffer >> (15 - j) & 0x1;
+                // Check if traverse left or right child from current node in tree
+                if(bit == 0){
+                    node = node->t_left;
+                    // If current node is a leaf, write to file and reset current node back to root
+                    if(HNode_is_child(node) == 1){ 
+                        //printf("[%4x, %d]\n", node->pair->byte_value, node->pair->byte_count);
+                        // Swap bytes
+                        two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
+                        two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        fwrite(two_byte_buffer, sizeof(unsigned char), 2, output_file);
+                        node = root;
+                    }
+                }
+                // else if bit == 1
+                else{ 
+                    node = node->t_right;
+                    // If current node is a leaf, write to file and reset current node back to root
+                    if(HNode_is_child(node) == 1){ 
+                        two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
+                        two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        fwrite(two_byte_buffer, sizeof(unsigned char), 2, output_file);
+                        node = root;
+                    }
+                }
+            }
+        }
+        // Restrict reading bits in last word
+        max_bits = 16 - r->last_bit_offset;
+        for(unsigned int j = 0; j < max_bits; j++){
+            bit = word_buffer >> (15 - j) & 0x1;
+            // Check if traverse left or right child from current node in tree
+            if(bit == 0){
+                node = node->t_left;
+                // If current node is a leaf, write to file and reset current node back to root
+                if(HNode_is_child(node) == 1){ 
+                    //printf("[%4x, %d]\n", node->pair->byte_value, node->pair->byte_count);
+                    // Swap bytes
+                    two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
+                    two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
+                    two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                    two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+                    two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                    fwrite(two_byte_buffer, sizeof(unsigned char), 2, output_file);
+                    node = root;
+                }
+            }
+            // else if bit == 1
+            else{ 
+                node = node->t_right;
+                // If current node is a leaf, write to file and reset current node back to root
+                if(HNode_is_child(node) == 1){ 
+                    two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
+                    two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
+                    two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                    two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+                    two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                    fwrite(two_byte_buffer, sizeof(unsigned char), 2, output_file);
+                    node = root;
+                }
+            }
         }
     }
+    // Else if data section size is even...
     else{
+        node = root;
         for(unsigned int i = 0; i < data_section_size; i++){
-            fread(&word_buffer, sizeof(unsigned short), 1, input_file);
-            printf("-> %x\n", word_buffer);
+            fread(&two_byte_buffer, sizeof(unsigned char), 2, input_file);
+            two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+            two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+            two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+            word_buffer = (two_byte_buffer[0] << 8) | two_byte_buffer[1];
+            // If in last word, restrict reading bits
+            if(i == data_section_size - 1){
+                max_bits = 16 - r->last_bit_offset;
+            }
+            // Else, read the whole word
+            else{
+                max_bits = 16;
+            }
+            for(unsigned int j = 0; j < max_bits; j++){
+                bit = word_buffer >> (15 - j) & 0x1;
+                // Check if traverse left or right child from current node in tree
+                if(bit == 0){
+                    node = node->t_left;
+                    // If current node is a leaf, write to file and reset current node back to root
+                    if(HNode_is_child(node) == 1){ 
+                        // Swap bytes in word
+                        two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
+                        two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        // Write to file
+                        fwrite(two_byte_buffer, sizeof(unsigned char), 2, output_file);
+                        node = root;
+                    }
+                }
+                // else if bit == 1
+                else{ 
+                    node = node->t_right;
+                    // If current node is a leaf, write to file and reset current node back to root
+                    if(HNode_is_child(node) == 1){ 
+                        // Swap bytes in word
+                        two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
+                        two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
+                        two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
+                        // Write to file
+                        fwrite(two_byte_buffer, sizeof(unsigned char), 2, output_file);
+                        node = root;
+                    }
+                }
+            }
         }
     }
 
+    // Close input and output files
     fclose(input_file);
+    fclose(output_file);
     return 0;
 }
