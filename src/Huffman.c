@@ -93,7 +93,7 @@ int HNode_dfs(HNode* node, int level_count, char* code_buffer, char** huffman_co
     return 0;
 }
 
-int HNode_is_child(HNode* node){
+int HNode_is_leaf(HNode* node){
     if(node == NULL){
         return -1;
     }
@@ -535,8 +535,8 @@ int Huffman_decompress(Huffman* h, Reader* r){
     size_t data_section_offset = sizeof(unsigned int) + (r->pairs_written * (sizeof(unsigned short) + sizeof(unsigned int)));
     // data_section_size = (total_file_size - data_section_offset) / 2 (read 2 bytes per iteration)
     size_t data_section_size = (r->file_size - data_section_offset) / 2;
-    unsigned short bit_position = 0;
 
+    // Open output file
     output_file = fopen(h->filename, "w");
 
     // If data section size is not even...
@@ -561,7 +561,7 @@ int Huffman_decompress(Huffman* h, Reader* r){
                 if(bit == 0){
                     node = node->t_left;
                     // If current node is a leaf, write to file and reset current node back to root
-                    if(HNode_is_child(node) == 1){ 
+                    if(HNode_is_leaf(node) == 1){ 
                         //printf("[%4x, %d]\n", node->pair->byte_value, node->pair->byte_count);
                         // Swap bytes
                         two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
@@ -577,7 +577,7 @@ int Huffman_decompress(Huffman* h, Reader* r){
                 else{ 
                     node = node->t_right;
                     // If current node is a leaf, write to file and reset current node back to root
-                    if(HNode_is_child(node) == 1){ 
+                    if(HNode_is_leaf(node) == 1){ 
                         two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
                         two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
                         two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
@@ -597,7 +597,7 @@ int Huffman_decompress(Huffman* h, Reader* r){
             if(bit == 0){
                 node = node->t_left;
                 // If current node is a leaf, write to file and reset current node back to root
-                if(HNode_is_child(node) == 1){ 
+                if(HNode_is_leaf(node) == 1){ 
                     //printf("[%4x, %d]\n", node->pair->byte_value, node->pair->byte_count);
                     // Swap bytes
                     two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
@@ -613,7 +613,7 @@ int Huffman_decompress(Huffman* h, Reader* r){
             else{ 
                 node = node->t_right;
                 // If current node is a leaf, write to file and reset current node back to root
-                if(HNode_is_child(node) == 1){ 
+                if(HNode_is_leaf(node) == 1){ 
                     two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
                     two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
                     two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
@@ -648,7 +648,7 @@ int Huffman_decompress(Huffman* h, Reader* r){
                 if(bit == 0){
                     node = node->t_left;
                     // If current node is a leaf, write to file and reset current node back to root
-                    if(HNode_is_child(node) == 1){ 
+                    if(HNode_is_leaf(node) == 1){ 
                         // Swap bytes in word
                         two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
                         two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;
@@ -664,7 +664,7 @@ int Huffman_decompress(Huffman* h, Reader* r){
                 else{ 
                     node = node->t_right;
                     // If current node is a leaf, write to file and reset current node back to root
-                    if(HNode_is_child(node) == 1){ 
+                    if(HNode_is_leaf(node) == 1){ 
                         // Swap bytes in word
                         two_byte_buffer[0] = (node->pair->byte_value) & 0xFF;
                         two_byte_buffer[1] = (node->pair->byte_value >> 8) & 0xFF;

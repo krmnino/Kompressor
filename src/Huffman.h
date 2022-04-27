@@ -16,7 +16,7 @@ HNode* HNode_init(Pair*);
 int HNode_free(HNode*);
 int HNode_free_bfs(HNode*);
 int HNode_dfs(HNode*, int, char*, char**);
-int HNode_is_child(HNode*);
+int HNode_is_leaf(HNode*);
 
 typedef struct HQueue HQueue;
 struct HQueue{
