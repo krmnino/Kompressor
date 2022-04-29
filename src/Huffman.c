@@ -382,7 +382,7 @@ int Huffman_compress(Huffman* h, Reader* r){
             fread(byte_buffer_r, sizeof(char), 1, input_file);
             idx = ((idx | byte_buffer_l[0]) << 8) | byte_buffer_r[0];
             code_len = strlen(h->huffman_code[idx]);
-            for(size_t j = 0; j < code_len; j++){
+            for(unsigned int j = 0; j < code_len; j++){
                 if(bit_offset >= 15){
                     // Get the corresponfding Huffman code bit
                     word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
@@ -401,7 +401,7 @@ int Huffman_compress(Huffman* h, Reader* r){
         fread(byte_buffer_l, sizeof(char), 1, input_file);
         idx = ((idx | byte_buffer_l[0]) << 8) | 0x00;
         code_len = strlen(h->huffman_code[idx]);
-        for(size_t j = 0; j < code_len; j++){
+        for(unsigned int j = 0; j < code_len; j++){
             if(bit_offset >= 15){
                 // Get the corresponfding Huffman code bit
                 word_buffer = (word_buffer << 1) | (h->huffman_code[idx][j] & 0x0F);
@@ -428,7 +428,7 @@ int Huffman_compress(Huffman* h, Reader* r){
         bit_offset = 0;
         word_buffer = 0;
         // Read through whole file
-        for(size_t i = 0; i < r->file_size - 1; i += 2){
+        for(size_t i = 0; i < r->file_size; i += 2){
             // Read 2 bytes to create index value
             idx = 0;
             fread(byte_buffer_l, sizeof(char), 1, input_file);
@@ -450,6 +450,14 @@ int Huffman_compress(Huffman* h, Reader* r){
                 }
             }
         }
+        // If word buffer is not full, pad remaining bits with zeros by shifting left
+        if(bit_offset != 15){
+            word_buffer = word_buffer << (16 - bit_offset);
+            last_bit_offset = 16 - bit_offset;
+        }
+        fwrite(&word_buffer, sizeof(unsigned short), 1, output_file);
+        fseek(output_file, sizeof(unsigned int), SEEK_SET);    
+        fwrite(&last_bit_offset, sizeof(unsigned char), 1, output_file);
     }
     
     fclose(input_file);
@@ -533,22 +541,22 @@ int Huffman_decompress(Huffman* h, Reader* r){
 
     // data_section = offset = pair_count * (short_size + int_size) + int_size
     size_t data_section_offset = sizeof(unsigned int) + (r->pairs_written * (sizeof(unsigned short) + sizeof(unsigned int)));
-    // data_section_size = (total_file_size - data_section_offset) / 2 (read 2 bytes per iteration)
-    size_t data_section_size = (r->file_size - data_section_offset) / 2;
+    // data_section_size = (total_file_size - data_section_offset) - 1 
+    size_t data_section_size = (r->file_size - data_section_offset) - 1;
 
     // Open output file
     output_file = fopen(h->filename, "w");
 
     // If data section size is not even...
     if(data_section_size % 2 != 0){
-        for(unsigned int i = 0; i < data_section_size - 1; i++){
+        for(size_t i = 0; i < data_section_size - 1; i += 2){
             fread(&two_byte_buffer, sizeof(unsigned char), 2, input_file);
             two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
             two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
             two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
             word_buffer = (two_byte_buffer[0] << 8) | two_byte_buffer[1];
             // If in last word, restrict reading bits
-            if(i == data_section_size - 1){
+            if(i == data_section_size - 2){
                 max_bits = 16 - r->last_bit_offset;
             }
             // Else, read the whole word
@@ -628,14 +636,14 @@ int Huffman_decompress(Huffman* h, Reader* r){
     // Else if data section size is even...
     else{
         node = root;
-        for(unsigned int i = 0; i < data_section_size; i++){
+        for(size_t i = 0; i < data_section_size; i += 2){
             fread(&two_byte_buffer, sizeof(unsigned char), 2, input_file);
             two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
             two_byte_buffer[1] = two_byte_buffer[1] ^ two_byte_buffer[0];
             two_byte_buffer[0] = two_byte_buffer[0] ^ two_byte_buffer[1];
             word_buffer = (two_byte_buffer[0] << 8) | two_byte_buffer[1];
             // If in last word, restrict reading bits
-            if(i == data_section_size - 1){
+            if(i == data_section_size - 2){
                 max_bits = 16 - r->last_bit_offset;
             }
             // Else, read the whole word
