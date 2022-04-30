@@ -85,19 +85,5 @@ int main(int argc, char* argv[]) {
             Reader_free(r2);
         }
     }
-/*
-    const char* input_fn = "../tests/test_data1.txt";
-    //const char* input_fn = "../tests/test_data2.cl";
-    //const char* input_fn = "../tests/test_data3.txt";
-    //const char* input_fn = "../tests/test_data4.txt";
-    //const char* input_fn = "../tests/test_data5.txt";
-    //const char* input_fn = "../tests/test_data6.txt";
-    //const char* input_fn = "../tests/test_data7.csv";
-    //const char* input_fn = "../tests/test_data8.json";
-
-    const char* output_fn = "output.kom";
-
-    const char* decom_fn = "decom.txt";
-*/
     return 0;
 }
